@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import ExportModal from '@/components/ExportModal';
 
 export default function SettingsPage() {
   const [allUsers, setAllUsers]       = useState([]);
@@ -16,8 +17,11 @@ export default function SettingsPage() {
   const [watiSources, setWatiSources] = useState([]);
   const [srcPhone, setSrcPhone]       = useState('');
   const [srcLabel, setSrcLabel]       = useState('');
-  const [copiedSrcId, setCopiedSrcId] = useState(null);
   const [webhookUrl, setWebhookUrl]   = useState('/api/webhook');
+  const [showExportModal, setShowExportModal] = useState(false);
+
+  // Assignment mode
+  const [assignmentMode, setAssignmentMode] = useState('global');
 
   const fetchUsers = async () => {
     const res  = await fetch('/api/telecallers');
@@ -31,11 +35,20 @@ export default function SettingsPage() {
     setWatiSources(Array.isArray(data) ? data : []);
   };
 
+  const fetchAssignmentMode = async () => {
+    try {
+      const res = await fetch('/api/settings?key=assignment_mode');
+      const data = await res.json();
+      if (data.value) setAssignmentMode(data.value);
+    } catch (e) {}
+  };
+
   // Fetch users bundled in lower useEffect
 
   useEffect(() => {
     fetchUsers();
     fetchSources();
+    fetchAssignmentMode();
     setWebhookUrl(`${window.location.origin}/api/webhook`);
   }, []);
 
@@ -152,6 +165,30 @@ export default function SettingsPage() {
     showToast('Webhook URL copied!');
   };
 
+  const updateSourceCallers = async (id, callers) => {
+    try {
+      await fetch('/api/sources', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, callers }),
+      });
+      fetchSources();
+      showToast('Assigned callers updated');
+    } catch { showToast('Failed to update callers', 'error'); }
+  };
+
+  const toggleAssignmentMode = async (mode) => {
+    try {
+      setAssignmentMode(mode);
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'assignment_mode', value: mode }),
+      });
+      showToast('Assignment mode updated');
+    } catch { showToast('Failed to update mode', 'error'); }
+  };
+
   const handleDangerAction = async (action, confirmText) => {
     const promptValue = window.prompt(`Type "${confirmText}" to confirm this action. It CANNOT be undone.`);
     if (promptValue !== confirmText) {
@@ -186,11 +223,39 @@ export default function SettingsPage() {
       <div className="page-header">
         <h2>⚙️ Settings</h2>
         <div className="page-header-actions">
-          <a href="/api/export" className="btn btn-primary" id="export-settings-btn">📥 Export All Leads</a>
+          <button onClick={() => setShowExportModal(true)} className="btn btn-primary" id="export-settings-btn">📥 Export All Leads</button>
         </div>
       </div>
 
+      <ExportModal show={showExportModal} onClose={() => setShowExportModal(false)} />
+
       <div className="settings-container">
+
+        {/* ── Assignment Rules ── */}
+        <div className="settings-section">
+          <h3>⚖️ Lead Assignment Mode</h3>
+          <p style={{ fontSize:13, color:'var(--text-secondary)', marginBottom:16 }}>
+            Choose how new incoming leads are distributed to your telecallers.
+          </p>
+
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:12 }}>
+            <div
+              onClick={() => toggleAssignmentMode('global')}
+              style={{ flex:1, cursor:'pointer', padding:16, border:`2px solid ${assignmentMode === 'global' ? '#6366f1' : 'var(--border)'}`, background: assignmentMode === 'global' ? 'var(--blue-bg)' : 'var(--bg-primary)', borderRadius:'var(--radius-sm)' }}
+            >
+              <div style={{ fontWeight:700, fontSize:14, color: assignmentMode === 'global' ? '#6366f1' : 'var(--text-primary)', marginBottom:4 }}>🌐 Global Auto-Assign</div>
+              <div style={{ fontSize:12, color:'var(--text-muted)' }}>Incoming leads are routed to the telecaller with the fewest active leads, regardless of which WATI number the lead came from.</div>
+            </div>
+
+            <div
+              onClick={() => toggleAssignmentMode('source')}
+              style={{ flex:1, cursor:'pointer', padding:16, border:`2px solid ${assignmentMode === 'source' ? '#10b981' : 'var(--border)'}`, background: assignmentMode === 'source' ? '#f0fdf4' : 'var(--bg-primary)', borderRadius:'var(--radius-sm)' }}
+            >
+              <div style={{ fontWeight:700, fontSize:14, color: assignmentMode === 'source' ? '#10b981' : 'var(--text-primary)', marginBottom:4 }}>🎯 Source-Based Auto-Assign</div>
+              <div style={{ fontSize:12, color:'var(--text-muted)' }}>You manually assign specific telecallers to specific WATI numbers. Leads from a number will ONLY route to the telecallers assigned to it.</div>
+            </div>
+          </div>
+        </div>
 
         {/* ── Webhook URL ── */}
         <div className="settings-section">
@@ -286,6 +351,38 @@ export default function SettingsPage() {
                         🗑️
                       </button>
                     </div>
+
+                    {/* Assigned Callers (Only show if source mode is active) */}
+                    {assignmentMode === 'source' && (
+                      <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
+                        <div style={{ fontSize:12, fontWeight:600, color:'var(--text-primary)', marginBottom:6 }}>Assigned Telecallers:</div>
+                        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                          {telecallers.map(tc => {
+                            let assigned = [];
+                            try { assigned = JSON.parse(src.assigned_callers || '[]'); } catch(e) {}
+                            const isAssigned = assigned.includes(tc.id);
+
+                            return (
+                              <label key={tc.id} style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, background: isAssigned ? '#ecfeff' : 'var(--bg-secondary)', border: `1px solid ${isAssigned ? '#0891b2' : 'var(--border)'}`, padding:'4px 8px', borderRadius:20, cursor:'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isAssigned}
+                                  onChange={(e) => {
+                                    const newAssigned = e.target.checked
+                                      ? [...assigned, tc.id]
+                                      : assigned.filter(id => id !== tc.id);
+                                    updateSourceCallers(src.id, newAssigned);
+                                  }}
+                                  style={{ margin:0, cursor:'pointer' }}
+                                />
+                                <span style={{ color: isAssigned ? '#0891b2' : 'var(--text-primary)' }}>{tc.name}</span>
+                              </label>
+                            );
+                          })}
+                          {telecallers.length === 0 && <span style={{ fontSize:12, color:'var(--text-muted)' }}>No telecallers created yet.</span>}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

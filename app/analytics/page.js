@@ -8,6 +8,7 @@ import {
   Title, Tooltip, Legend, Filler,
 } from 'chart.js';
 import { Bar, Doughnut, Line, Radar } from 'react-chartjs-2';
+import ExportModal from '@/components/ExportModal';
 
 ChartJS.register(
   CategoryScale, LinearScale, BarElement, ArcElement,
@@ -151,6 +152,7 @@ function Avatar({ name, size = 28 }) {
 export default function AnalyticsPage() {
   const [data, setData]   = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   useEffect(() => {
     fetch('/api/analytics')
@@ -296,9 +298,11 @@ export default function AnalyticsPage() {
       <div className="page-header">
         <h2>Analytics</h2>
         <div className="page-header-actions">
-          <a href="/api/export" className="btn btn-primary" id="export-analytics-btn">📥 Export Excel</a>
+          <button onClick={() => setShowExportModal(true)} className="btn btn-primary" id="export-analytics-btn">📥 Export Excel</button>
         </div>
       </div>
+
+      <ExportModal show={showExportModal} onClose={() => setShowExportModal(false)} />
 
       <div className="analytics-container">
 

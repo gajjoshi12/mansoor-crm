@@ -38,3 +38,18 @@ export async function DELETE(request) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function PUT(request) {
+  try {
+    const { updateWatiSourceCallers } = require('@/lib/db');
+    const { id, callers } = await request.json();
+    if (!id || !Array.isArray(callers)) {
+      return NextResponse.json({ error: 'invalid payload' }, { status: 400 });
+    }
+    updateWatiSourceCallers(parseInt(id), callers);
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    console.error('Update source error:', e);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

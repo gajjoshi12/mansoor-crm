@@ -2,6 +2,8 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useState } from 'react';
+import ExportModal from './ExportModal';
 
 function Avatar({ name, size = 34 }) {
   const initials = (name || 'U')
@@ -34,6 +36,7 @@ function Avatar({ name, size = 34 }) {
 export default function Sidebar({ session, mobileOpen = false, onMobileClose }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const mainLinks = [
     { href: '/', icon: '📋', label: 'Leads', id: 'nav-leads' },
@@ -157,16 +160,18 @@ export default function Sidebar({ session, mobileOpen = false, onMobileClose }) 
       {/* Footer */}
       <div className="sidebar-footer">
         {isAdmin && (
-          <a href="/api/export" className="sidebar-footer-btn" id="export-btn">
+          <button onClick={() => setShowExportModal(true)} className="sidebar-footer-btn" id="export-btn" style={{ textAlign: 'left' }}>
             <span className="icon" style={{ fontSize: 16 }}>📥</span>
             <span>Export Excel</span>
-          </a>
+          </button>
         )}
-        <button onClick={handleLogout} className="sidebar-footer-btn danger">
+        <button onClick={handleLogout} className="sidebar-footer-btn danger" style={{ textAlign: 'left' }}>
           <span className="icon" style={{ fontSize: 16 }}>🚪</span>
           <span>Log Out</span>
         </button>
       </div>
+
+      {isAdmin && <ExportModal show={showExportModal} onClose={() => setShowExportModal(false)} />}
     </aside>
   );
 }

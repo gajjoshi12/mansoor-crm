@@ -5,13 +5,23 @@ import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request) {
   try {
     const session = await getSession();
     if (!session || session.role !== 'admin') {
       return new NextResponse('Forbidden', { status: 403 });
     }
-    const leads = getAllLeadsForExport();
+
+    const { searchParams } = new URL(request.url);
+    const filters = {
+      startDate: searchParams.get('startDate'),
+      endDate: searchParams.get('endDate'),
+      source: searchParams.get('source'),
+      status: searchParams.get('status'),
+      assigned_to: searchParams.get('assigned_to'),
+    };
+
+    const leads = getAllLeadsForExport(filters);
 
     const data = leads.map((l, i) => ({
       '#': i + 1,
