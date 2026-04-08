@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+data
+*.db
+clean-db.js
+test-*.js
+check.js
+.env.local
