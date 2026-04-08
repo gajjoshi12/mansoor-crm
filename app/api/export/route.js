@@ -19,6 +19,7 @@ export async function GET() {
       'Name': l.name || '-',
       'Status': l.status,
       'Source WhatsApp': l.source_number || '-',
+      'Source Label': l.source_label || '-',
       'Assigned To': l.assigned_to || 'Unassigned',
       'Last Message': l.last_message || '-',
       'Last Activity': l.last_activity || '-',

@@ -232,7 +232,7 @@ export default function AnalyticsPage() {
   };
 
   const sourceData = {
-    labels: (data.perSource || []).map(s => s.source_number),
+    labels: (data.perSource || []).map(s => s.source_label || s.source_number),
     datasets: [{
       label: 'Leads',
       data: (data.perSource || []).map(s => s.count),

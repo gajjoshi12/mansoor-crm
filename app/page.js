@@ -181,7 +181,11 @@ export default function LeadsPage() {
                 onChange={e => { setSourceFilter(e.target.value); setPage(1); }}
               >
                 <option value="">All Sources</option>
-                {sources.map(s => <option key={s} value={s}>{s}</option>)}
+                {sources.map(s => (
+                  <option key={s.source_number} value={s.source_number}>
+                    {s.source_label ? `${s.source_label} (${s.source_number})` : s.source_number}
+                  </option>
+                ))}
               </select>
               <select
                 id="filter-assigned"
