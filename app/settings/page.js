@@ -17,11 +17,10 @@ export default function SettingsPage() {
   const [watiSources, setWatiSources] = useState([]);
   const [srcPhone, setSrcPhone]       = useState('');
   const [srcLabel, setSrcLabel]       = useState('');
+  const [srcCallers, setSrcCallers]   = useState([]);
+  const [copiedSrcId, setCopiedSrcId] = useState(null);
   const [webhookUrl, setWebhookUrl]   = useState('/api/webhook');
   const [showExportModal, setShowExportModal] = useState(false);
-
-  // Assignment mode
-  const [assignmentMode, setAssignmentMode] = useState('global');
 
   const fetchUsers = async () => {
     const res  = await fetch('/api/telecallers');
@@ -35,20 +34,9 @@ export default function SettingsPage() {
     setWatiSources(Array.isArray(data) ? data : []);
   };
 
-  const fetchAssignmentMode = async () => {
-    try {
-      const res = await fetch('/api/settings?key=assignment_mode');
-      const data = await res.json();
-      if (data.value) setAssignmentMode(data.value);
-    } catch (e) {}
-  };
-
-  // Fetch users bundled in lower useEffect
-
   useEffect(() => {
     fetchUsers();
     fetchSources();
-    fetchAssignmentMode();
     setWebhookUrl(`${window.location.origin}/api/webhook`);
   }, []);
 
@@ -139,7 +127,15 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'Failed to add', 'error'); return; }
-      setSrcPhone(''); setSrcLabel('');
+      // Save caller assignments if any were selected
+      if (srcCallers.length > 0) {
+        await fetch('/api/sources', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: data.id, callers: srcCallers }),
+        });
+      }
+      setSrcPhone(''); setSrcLabel(''); setSrcCallers([]);
       fetchSources();
       showToast(`Source "${srcLabel.trim()}" added!`);
     } catch { showToast('Failed to add source', 'error'); }
@@ -175,18 +171,6 @@ export default function SettingsPage() {
       fetchSources();
       showToast('Assigned callers updated');
     } catch { showToast('Failed to update callers', 'error'); }
-  };
-
-  const toggleAssignmentMode = async (mode) => {
-    try {
-      setAssignmentMode(mode);
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'assignment_mode', value: mode }),
-      });
-      showToast('Assignment mode updated');
-    } catch { showToast('Failed to update mode', 'error'); }
   };
 
   const handleDangerAction = async (action, confirmText) => {
@@ -231,32 +215,6 @@ export default function SettingsPage() {
 
       <div className="settings-container">
 
-        {/* ── Assignment Rules ── */}
-        <div className="settings-section">
-          <h3>⚖️ Lead Assignment Mode</h3>
-          <p style={{ fontSize:13, color:'var(--text-secondary)', marginBottom:16 }}>
-            Choose how new incoming leads are distributed to your telecallers.
-          </p>
-
-          <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:12 }}>
-            <div
-              onClick={() => toggleAssignmentMode('global')}
-              style={{ flex:1, cursor:'pointer', padding:16, border:`2px solid ${assignmentMode === 'global' ? '#6366f1' : 'var(--border)'}`, background: assignmentMode === 'global' ? 'var(--blue-bg)' : 'var(--bg-primary)', borderRadius:'var(--radius-sm)' }}
-            >
-              <div style={{ fontWeight:700, fontSize:14, color: assignmentMode === 'global' ? '#6366f1' : 'var(--text-primary)', marginBottom:4 }}>🌐 Global Auto-Assign</div>
-              <div style={{ fontSize:12, color:'var(--text-muted)' }}>Incoming leads are routed to the telecaller with the fewest active leads, regardless of which WATI number the lead came from.</div>
-            </div>
-
-            <div
-              onClick={() => toggleAssignmentMode('source')}
-              style={{ flex:1, cursor:'pointer', padding:16, border:`2px solid ${assignmentMode === 'source' ? '#10b981' : 'var(--border)'}`, background: assignmentMode === 'source' ? '#f0fdf4' : 'var(--bg-primary)', borderRadius:'var(--radius-sm)' }}
-            >
-              <div style={{ fontWeight:700, fontSize:14, color: assignmentMode === 'source' ? '#10b981' : 'var(--text-primary)', marginBottom:4 }}>🎯 Source-Based Auto-Assign</div>
-              <div style={{ fontSize:12, color:'var(--text-muted)' }}>You manually assign specific telecallers to specific WATI numbers. Leads from a number will ONLY route to the telecallers assigned to it.</div>
-            </div>
-          </div>
-        </div>
-
         {/* ── Webhook URL ── */}
         <div className="settings-section">
           <h3>🔗 Webhook URL</h3>
@@ -290,20 +248,43 @@ export default function SettingsPage() {
           </p>
 
           {/* Add new source form */}
-          <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap' }}>
-            <input
-              type="text" placeholder="WhatsApp Number (e.g. 9643665868)"
-              value={srcPhone} onChange={e => setSrcPhone(e.target.value)}
-              style={{ flex:'1 1 200px', fontSize:13, padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', background:'var(--bg-primary)', color:'var(--text-primary)', outline:'none' }}
-              id="src-phone-input"
-            />
-            <input
-              type="text" placeholder="Label (e.g. Mansoor Ads)"
-              value={srcLabel} onChange={e => setSrcLabel(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') addSource(); }}
-              style={{ flex:'1 1 180px', fontSize:13, padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', background:'var(--bg-primary)', color:'var(--text-primary)', outline:'none' }}
-              id="src-label-input"
-            />
+          <div style={{ background:'var(--bg-secondary)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'14px 16px', marginBottom:16 }}>
+            <div style={{ display:'flex', gap:10, marginBottom:12, flexWrap:'wrap' }}>
+              <input
+                type="text" placeholder="WhatsApp Number (e.g. 9643665868)"
+                value={srcPhone} onChange={e => setSrcPhone(e.target.value)}
+                style={{ flex:'1 1 200px', fontSize:13, padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', background:'var(--bg-primary)', color:'var(--text-primary)', outline:'none' }}
+                id="src-phone-input"
+              />
+              <input
+                type="text" placeholder="Label (e.g. Mansoor Ads)"
+                value={srcLabel} onChange={e => setSrcLabel(e.target.value)}
+                style={{ flex:'1 1 180px', fontSize:13, padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', background:'var(--bg-primary)', color:'var(--text-primary)', outline:'none' }}
+                id="src-label-input"
+              />
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:12, fontWeight:600, color:'var(--text-primary)', marginBottom:6 }}>
+                Assign Telecallers <span style={{ fontWeight:400, color:'var(--text-muted)' }}>(optional — if none selected, leads go to all active telecallers)</span>
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {telecallers.map(tc => {
+                  const isSelected = srcCallers.includes(tc.id);
+                  return (
+                    <label key={tc.id} style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, background: isSelected ? '#ecfeff' : 'var(--bg-primary)', border: `1px solid ${isSelected ? '#0891b2' : 'var(--border)'}`, padding:'4px 8px', borderRadius:20, cursor:'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={e => setSrcCallers(e.target.checked ? [...srcCallers, tc.id] : srcCallers.filter(id => id !== tc.id))}
+                        style={{ margin:0, cursor:'pointer' }}
+                      />
+                      <span style={{ color: isSelected ? '#0891b2' : 'var(--text-primary)' }}>{tc.name}</span>
+                    </label>
+                  );
+                })}
+                {telecallers.length === 0 && <span style={{ fontSize:12, color:'var(--text-muted)' }}>No telecallers created yet.</span>}
+              </div>
+            </div>
             <button className="btn btn-primary" onClick={addSource} id="add-src-btn" style={{ whiteSpace:'nowrap' }}>
               ➕ Add Number
             </button>
@@ -352,37 +333,36 @@ export default function SettingsPage() {
                       </button>
                     </div>
 
-                    {/* Assigned Callers (Only show if source mode is active) */}
-                    {assignmentMode === 'source' && (
-                      <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
-                        <div style={{ fontSize:12, fontWeight:600, color:'var(--text-primary)', marginBottom:6 }}>Assigned Telecallers:</div>
-                        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                          {telecallers.map(tc => {
-                            let assigned = [];
-                            try { assigned = JSON.parse(src.assigned_callers || '[]'); } catch(e) {}
-                            const isAssigned = assigned.includes(tc.id);
-
-                            return (
-                              <label key={tc.id} style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, background: isAssigned ? '#ecfeff' : 'var(--bg-secondary)', border: `1px solid ${isAssigned ? '#0891b2' : 'var(--border)'}`, padding:'4px 8px', borderRadius:20, cursor:'pointer' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={isAssigned}
-                                  onChange={(e) => {
-                                    const newAssigned = e.target.checked
-                                      ? [...assigned, tc.id]
-                                      : assigned.filter(id => id !== tc.id);
-                                    updateSourceCallers(src.id, newAssigned);
-                                  }}
-                                  style={{ margin:0, cursor:'pointer' }}
-                                />
-                                <span style={{ color: isAssigned ? '#0891b2' : 'var(--text-primary)' }}>{tc.name}</span>
-                              </label>
-                            );
-                          })}
-                          {telecallers.length === 0 && <span style={{ fontSize:12, color:'var(--text-muted)' }}>No telecallers created yet.</span>}
-                        </div>
+                    {/* Assigned Telecallers — always visible */}
+                    <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
+                      <div style={{ fontSize:12, fontWeight:600, color:'var(--text-primary)', marginBottom:6 }}>
+                        Assigned Telecallers: <span style={{ fontWeight:400, color:'var(--text-muted)' }}>(none = routes to all active telecallers)</span>
                       </div>
-                    )}
+                      <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                        {telecallers.map(tc => {
+                          let assigned = [];
+                          try { assigned = JSON.parse(src.assigned_callers || '[]'); } catch(e) {}
+                          const isAssigned = assigned.includes(tc.id);
+                          return (
+                            <label key={tc.id} style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, background: isAssigned ? '#ecfeff' : 'var(--bg-secondary)', border: `1px solid ${isAssigned ? '#0891b2' : 'var(--border)'}`, padding:'4px 8px', borderRadius:20, cursor:'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={isAssigned}
+                                onChange={(e) => {
+                                  const newAssigned = e.target.checked
+                                    ? [...assigned, tc.id]
+                                    : assigned.filter(id => id !== tc.id);
+                                  updateSourceCallers(src.id, newAssigned);
+                                }}
+                                style={{ margin:0, cursor:'pointer' }}
+                              />
+                              <span style={{ color: isAssigned ? '#0891b2' : 'var(--text-primary)' }}>{tc.name}</span>
+                            </label>
+                          );
+                        })}
+                        {telecallers.length === 0 && <span style={{ fontSize:12, color:'var(--text-muted)' }}>No telecallers created yet.</span>}
+                      </div>
+                    </div>
                   </div>
                 );
               })}
